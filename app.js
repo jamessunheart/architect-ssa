@@ -18,7 +18,7 @@ if (!fs.existsSync(projectsDir)) fs.mkdirSync(projectsDir, { recursive: true });
 
 app.post('/api/build', async (req, res) => {
   const { prompt, integrations = [] } = req.body;
-  const projectName = prompt.replace(/\\W+/g, '_').toLowerCase();
+  const projectName = prompt.replace(/\W+/g, '_').toLowerCase();
   const projectPath = path.join(projectsDir, projectName);
   if (!fs.existsSync(projectPath)) fs.mkdirSync(projectPath, { recursive: true });
 
@@ -28,7 +28,7 @@ app.post('/api/build', async (req, res) => {
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo", // ✅ GPT-4.1 (turbo variant)
+      model: "gpt-4-turbo",
       messages: [{
         role: "user",
         content: "Create a full index.html file (with JS and CSS) for this app idea: " + prompt + ". " + integrationNote + " Reply only with HTML code."
@@ -51,10 +51,41 @@ app.post('/api/update-self', async (req, res) => {
     await git.addConfig('user.name', 'Architect SSA');
     await git.addConfig('user.email', 'architect@ssa.ai');
     await git.add(filePath);
-    await git.commit(commitMessage || "Auto-update from SSA v4");
-    res.json({ message: "✅ Self-updated and committed: " + filePath });
+    await git.commit(commitMessage || "Auto-update from SSA");
+    await git.push('origin', 'main'); // ✅ Auto-push
+    res.json({ message: "✅ Self-updated, committed, and pushed: " + filePath });
   } catch (err) {
-    res.status(500).json({ error: "❌ Failed to update self: " + err.message });
+    res.status(500).json({ error: "❌ Failed to update and push: " + err.message });
+  }
+});
+
+app.post('/api/evolve', async (req, res) => {
+  const { instruction } = req.body;
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4-turbo",
+      messages: [{
+        role: "user",
+        content: "Given the following instruction, respond ONLY with updated JavaScript code to replace the full content of app.js:
+
+Instruction:
+" + instruction
+      }]
+    });
+
+    const newCode = completion.choices[0].message.content;
+    const filePath = "app.js";
+    const fullPath = path.join(__dirname, filePath);
+    fs.writeFileSync(fullPath, newCode);
+    await git.addConfig('user.name', 'Architect SSA');
+    await git.addConfig('user.email', 'architect@ssa.ai');
+    await git.add(filePath);
+    await git.commit("Evolve: " + instruction);
+    await git.push('origin', 'main');
+
+    res.json({ message: "✅ SSA evolved with instruction and deployed." });
+  } catch (err) {
+    res.status(500).json({ error: "❌ Failed to evolve: " + err.message });
   }
 });
 
@@ -64,5 +95,5 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("🚀 Architect SSA v4 running at http://localhost:" + PORT);
+  console.log("🧠 Architect SSA v4.1 running at http://localhost:" + PORT);
 });
