@@ -68,6 +68,41 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+app.post('/api/evolve', async (req, res) => {
+  const { instruction } = req.body;
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4-turbo",
+      messages: [
+        {
+          role: "user",
+          content: `You are the live backend of an AI system. Based on this instruction, respond ONLY with valid JavaScript code for the full content of app.js:\n\n"${instruction}"`
+        }
+      ]
+    });
+
+    const newCode = completion.choices[0].message.content;
+    const filePath = "app.js";
+    const fullPath = path.join(__dirname, filePath);
+
+    fs.writeFileSync(fullPath, newCode);
+
+    await git.addConfig('user.name', 'Architect SSA', false, 'global');
+    await git.addConfig('user.email', 'architect@ssa.ai', false, 'global');
+    await git.add(filePath);
+    await git.commit("Evolve: " + instruction);
+    await git.push('origin', 'main');
+
+    res.json({ message: "✅ SSA evolved, committed, and pushed." });
+  } catch (err) {
+    res.status(500).json({ error: "❌ Evolution failed: " + err.message });
+  }
+});
+
+
+
+
 app.listen(PORT, () => {
   console.log("🚀 SSA v5 is live at http://localhost:" + PORT);
 });
