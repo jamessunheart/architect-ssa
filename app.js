@@ -30,7 +30,7 @@ app.post('/api/build', async (req, res) => {
       model: "gpt-4",
       messages: [{
         role: "user",
-        content: \`Create a full index.html file (with JS and CSS) for this app idea: "\${prompt}". \${integrationNote} Reply only with HTML code.\`
+        `Create a full index.html file (with JS and CSS) for this app idea: "${prompt}". ${integrationNote} Reply only with HTML code.`
       }]
     });
 
