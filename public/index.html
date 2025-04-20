@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Architect SSA v3</title>
+</head>
+<body>
+  <h1>🧠 Architect SSA v3</h1>
+  <textarea id="prompt" rows="5" cols="60" placeholder="Describe your app idea here..."></textarea><br><br>
+  <label>APIs to integrate (comma-separated):</label><br>
+  <input type="text" id="apis" placeholder="e.g., Stripe, Twilio, Notion"><br><br>
+  <button onclick="build()">Build App</button>
+  <pre id="status"></pre>
+
+  <script>
+    async function build() {
+      const prompt = document.getElementById('prompt').value;
+      const apis = document.getElementById('apis').value.split(',').map(s => s.trim()).filter(s => s);
+      const status = document.getElementById('status');
+      status.textContent = '⚙️ Building...';
+
+      const res = await fetch('/api/build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, integrations: apis })
+      });
+
+      const result = await res.json();
+      if (result.url) {
+        status.innerHTML = \`✅ App ready: <a href="\${result.url}" target="_blank">Open App</a>\`;
+      } else {
+        status.textContent = result.error || "Unknown error occurred.";
+      }
+    }
+  </script>
+</body>
+</html>
