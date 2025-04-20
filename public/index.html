@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Architect SSA v4</title>
+</head>
+<body>
+  <h1>🧠 Architect SSA v4</h1>
+  <textarea id="prompt" rows="5" cols="60" placeholder="What would you like me to build?"></textarea><br>
+  <input id="apis" placeholder="APIs to integrate (comma-separated)" /><br><br>
+  <button onclick="build()">Build App</button>
+  <pre id="status">Waiting for your vision...</pre>
+
+  <script>
+    async function build() {
+      const prompt = document.getElementById('prompt').value;
+      const apis = document.getElementById('apis').value.split(',').map(a => a.trim()).filter(Boolean);
+      const status = document.getElementById('status');
+      status.textContent = '🔄 Building...';
+      try {
+        const res = await fetch('/api/build', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, integrations: apis })
+        });
+        const data = await res.json();
+        if (data.url) {
+          status.innerHTML = `✅ App built: <a href="${data.url}" target="_blank">${data.url}</a>`;
+        } else {
+          status.textContent = data.error || "⚠️ Unknown error.";
+        }
+      } catch (e) {
+        status.textContent = "❌ Failed to build: " + e.message;
+      }
+    }
+  </script>
+</body>
+</html>
