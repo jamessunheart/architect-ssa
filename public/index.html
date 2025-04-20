@@ -1,34 +1,91 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Architect SSA v3</title>
+  <meta charset="UTF-8">
+  <title>🧠 Architect SSA v3</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      padding: 2rem;
+      background: #f9f9f9;
+      color: #222;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    textarea, input {
+      width: 100%;
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    button {
+      background-color: #4f46e5;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    pre {
+      margin-top: 1rem;
+      background: #eee;
+      padding: 1rem;
+      border-radius: 6px;
+      white-space: pre-wrap;
+    }
+  </style>
 </head>
 <body>
   <h1>🧠 Architect SSA v3</h1>
-  <textarea id="prompt" rows="5" cols="60" placeholder="Describe your app idea here..."></textarea><br><br>
-  <label>APIs to integrate (comma-separated):</label><br>
-  <input type="text" id="apis" placeholder="e.g., Stripe, Twilio, Notion"><br><br>
+  
+  <textarea id="prompt" rows="5" placeholder="Describe your app idea here..."></textarea>
+
+  <label for="apis">APIs to integrate (comma-separated):</label>
+  <input id="apis" placeholder="e.g., Stripe, Twilio, Notion" />
+
   <button onclick="build()">Build App</button>
-  <pre id="status"></pre>
+
+  <pre id="status">🟢 Ready for your vision...</pre>
 
   <script>
     async function build() {
       const prompt = document.getElementById('prompt').value;
-      const apis = document.getElementById('apis').value.split(',').map(s => s.trim()).filter(s => s);
+      const apis = document.getElementById('apis').value
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
       const status = document.getElementById('status');
       status.textContent = '⚙️ Building...';
 
-      const res = await fetch('/api/build', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, integrations: apis })
-      });
+      try {
+        const res = await fetch('/api/build', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, integrations: apis })
+        });
 
-      const result = await res.json();
-      if (result.url) {
-        status.innerHTML = \`✅ App ready: <a href="\${result.url}" target="_blank">Open App</a>\`;
-      } else {
-        status.textContent = result.error || "Unknown error occurred.";
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error("Server responded with error: " + text);
+        }
+
+        const result = await res.json();
+        console.log("✅ GPT Response:", result);
+
+        if (result.url) {
+          status.innerHTML = `✅ App ready: <a href="${result.url}" target="_blank">Open App</a>`;
+        } else {
+          status.textContent = result.error || "⚠️ Unknown error occurred.";
+        }
+
+      } catch (err) {
+        console.error("❌ GPT Call Failed:", err.message);
+        status.textContent = "❌ Build failed: " + err.message;
       }
     }
   </script>
