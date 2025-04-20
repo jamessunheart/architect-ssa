@@ -16,25 +16,24 @@ app.use('/projects', express.static(path.join(__dirname, 'projects')));
 const projectsDir = path.join(__dirname, 'projects');
 if (!fs.existsSync(projectsDir)) fs.mkdirSync(projectsDir, { recursive: true });
 
-app.post('/api/update-self', async (req, res) => {
-  const { filePath, newContent, commitMessage } = req.body;
-  const fullPath = path.join(__dirname, filePath);
+app.post('/api/build', async (req, res) => {
+  const { prompt, integrations = [] } = req.body;
+  const projectName = prompt.replace(/\\W+/g, '_').toLowerCase();
+  const projectPath = path.join(projectsDir, projectName);
+  if (!fs.existsSync(projectPath)) fs.mkdirSync(projectPath, { recursive: true });
+
+  const integrationNote = integrations.length > 0
+    ? "Integrate with: " + integrations.join(', ')
+    : "";
+
   try {
-    fs.writeFileSync(fullPath, newContent);
-
-    // Set Git identity every time (globally, so it sticks in ephemeral environments)
-    await git.addConfig('user.name', 'Architect SSA', false, 'global');
-    await git.addConfig('user.email', 'architect@ssa.ai', false, 'global');
-
-    await git.add(filePath);
-    await git.commit(commitMessage || "Auto-update from SSA");
-    await git.push('origin', 'main');
-
-    res.json({ message: "✅ Self-updated, committed, and pushed: " + filePath });
-  } catch (err) {
-    res.status(500).json({ error: "❌ Failed to update self: " + err.message });
-  }
-});
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4-turbo",
+      messages: [{
+        role: "user",
+        content: "Create a full index.html file (with JS and CSS) for this app idea: " + prompt + ". " + integrationNote + " Reply only with HTML code."
+      }]
+    });
 
     const htmlCode = completion.choices[0].message.content;
     fs.writeFileSync(path.join(projectPath, 'index.html'), htmlCode);
@@ -49,44 +48,18 @@ app.post('/api/update-self', async (req, res) => {
   const fullPath = path.join(__dirname, filePath);
   try {
     fs.writeFileSync(fullPath, newContent);
-    await git.addConfig('user.name', 'Architect SSA');
-    await git.addConfig('user.email', 'architect@ssa.ai');
+
+    // Force Git identity every time inside Render’s ephemeral build box
+    await git.addConfig('user.name', 'Architect SSA', false, 'global');
+    await git.addConfig('user.email', 'architect@ssa.ai', false, 'global');
+
     await git.add(filePath);
     await git.commit(commitMessage || "Auto-update from SSA");
-    await git.push('origin', 'main'); // ✅ Auto-push
-    res.json({ message: "✅ Self-updated, committed, and pushed: " + filePath });
-  } catch (err) {
-    res.status(500).json({ error: "❌ Failed to update and push: " + err.message });
-  }
-});
-
-app.post('/api/evolve', async (req, res) => {
-  const { instruction } = req.body;
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo",
-      messages: [{
-        role: "user",
-        content: "Given the following instruction, respond ONLY with updated JavaScript code to replace the full content of app.js:
-
-Instruction:
-" + instruction
-      }]
-    });
-
-    const newCode = completion.choices[0].message.content;
-    const filePath = "app.js";
-    const fullPath = path.join(__dirname, filePath);
-    fs.writeFileSync(fullPath, newCode);
-    await git.addConfig('user.name', 'Architect SSA');
-    await git.addConfig('user.email', 'architect@ssa.ai');
-    await git.add(filePath);
-    await git.commit("Evolve: " + instruction);
     await git.push('origin', 'main');
 
-    res.json({ message: "✅ SSA evolved with instruction and deployed." });
+    res.json({ message: "✅ Self-updated, committed, and pushed: " + filePath });
   } catch (err) {
-    res.status(500).json({ error: "❌ Failed to evolve: " + err.message });
+    res.status(500).json({ error: "❌ Failed to update self: " + err.message });
   }
 });
 
@@ -96,5 +69,5 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("🧠 Architect SSA v4.1 running at http://localhost:" + PORT);
+  console.log("🚀 SSA v5 is live at http://localhost:" + PORT);
 });
