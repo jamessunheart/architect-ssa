@@ -60,8 +60,5 @@ app.get("/api/time", (req, res) => {
 // ✅ Root route
 app.get("/", (req, res) => res.send("👋 SSA is awake. Go to /console"));
 
-// ✅ Root route
-app.get("/", (req, res) => res.send("👋 SSA is awake. Go to /console"));
-
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`✅ SSA running on port ${port}`));
