@@ -1,33 +1,33 @@
 const express = require("express");
 const fs = require("fs");
 const { execSync } = require("child_process");
-const app = express();
 
+const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Console UI
+// ✅ SSA Console (Chat UI)
 app.get("/console", (req, res) => {
   res.send(`
     <html>
       <head>
         <title>SSA Console</title>
         <style>
-          body { font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto; }
-          #messages { border: 1px solid #ccc; padding: 1rem; height: 300px; overflow-y: scroll; margin-bottom: 1rem; }
-          input { width: 80%; padding: 0.5rem; font-size: 1rem; }
-          button { padding: 0.5rem 1rem; font-size: 1rem; }
+          body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
+          #messages { border: 1px solid #ccc; padding: 1rem; height: 200px; overflow-y: scroll; margin-bottom: 1rem; }
         </style>
       </head>
       <body>
         <h1>🧠 SSA Console</h1>
         <div id="messages"></div>
-        <input id="input" placeholder="Give SSA a new instruction..." />
+        <input id="input" placeholder="Give SSA a new instruction..." style="width: 80%" />
         <button onclick="send()">Send</button>
+
         <script>
           const log = msg => {
             document.getElementById('messages').innerHTML += "<div>" + msg + "</div>";
           };
+
           function send() {
             const instruction = document.getElementById("input").value;
             log("🧠 " + instruction);
@@ -38,8 +38,8 @@ app.get("/console", (req, res) => {
             })
               .then(res => res.json())
               .then(data => {
-                if (data.message) log("✅ " + data.message);
-                else if (data.error) log("❌ " + data.error + "<br><pre>" + (data.details || "") + "</pre>");
+                if (data.error) log("❌ " + data.error);
+                else log("✅ " + data.message);
               })
               .catch(err => log("❌ " + err.message));
           }
@@ -49,32 +49,30 @@ app.get("/console", (req, res) => {
   `);
 });
 
-// ✅ Evolution endpoint
+// ✅ SSA Evolution Endpoint
 app.post("/api/evolve", (req, res) => {
   const { instruction } = req.body;
   const newCode = `\n// 🔁 SSA Evolution\n// ${instruction}\n`;
 
   try {
+    // 1. Append to app.js
     fs.appendFileSync("app.js", newCode);
 
+    // 2. Escape quotes for Git commit
+    const escaped = instruction.replace(/"/g, '\\"').replace(/'/g, "\\'");
     execSync("git add app.js");
-
-    // Escape double and single quotes
-    const safeInstruction = instruction.replace(/"/g, '\\"').replace(/'/g, "\\'");
-    execSync(`git commit -m "🧠 SSA evolved: ${safeInstruction}"`);
-
+    execSync(`git commit -m "🧠 SSA evolved: ${escaped}"`);
     execSync("git push");
 
     res.json({ message: "SSA evolved and pushed to GitHub." });
-
   } catch (err) {
-    console.error("Evolution error:", err.message);
-    res.status(500).json({ error: "Evolution failed.", details: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || "Evolution failed." });
   }
 });
 
-// ✅ Root info
-app.get("/", (req, res) => res.send("👋 SSA is running. Go to <a href='/console'>/console</a>"));
+// ✅ Default route
+app.get("/", (req, res) => res.send("👋 SSA is running. Go to /console"));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`✅ SSA running on port ${port}`));
