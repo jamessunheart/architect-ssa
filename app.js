@@ -1,10 +1,13 @@
 const express = require("express");
-const app = express();
+const fs = require("fs");
+const { execSync } = require("child_process");
+const path = require("path");
 
+const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ SSA Console UI
+// ✅ Console UI
 app.get("/console", (req, res) => {
   res.send(`
     <html>
@@ -44,21 +47,36 @@ app.get("/console", (req, res) => {
   `);
 });
 
-// ✅ Evolve endpoint — echoes back the instruction
+// ✅ Evolution endpoint
 app.post("/api/evolve", (req, res) => {
   const { instruction } = req.body;
+  console.log("🧠 Instruction received:", instruction);
 
-  console.log("🧠 SSA received instruction:", instruction);
-  res.json({ message: `SSA received: "${instruction}"` });
+  const match = instruction.match(/Add a GET route at (.*?) that returns (\{.*\})/);
+  if (!match) {
+    return res.status(400).json({ error: "❌ Could not parse instruction." });
+  }
+
+  const route = match[1].trim();
+  const responseObj = match[2];
+
+  const codeToAdd = `\n// 🔁 Auto-added route\napp.get(\"${route}\", (req, res) => res.json(${responseObj}));\n`;
+
+  try {
+    fs.appendFileSync(path.join(__dirname, "app.js"), codeToAdd);
+    execSync("git add app.js");
+    execSync(`git commit -m \"🧠 Evolved: ${instruction}\"`);
+    execSync("git push");
+
+    res.json({ message: `Evolved and deployed route ${route}` });
+  } catch (err) {
+    console.error("❌ Evolution error:", err);
+    res.status(500).json({ error: "Evolution failed." });
+  }
 });
 
-// 🔁 SSA Evolution
-app.get("/api/time", (req, res) => {
-  res.json({ time: new Date().toUTCString() });
-});
-
-// ✅ Root route
-app.get("/", (req, res) => res.send("👋 SSA is awake. Go to /console"));
+// ✅ Root
+app.get("/", (req, res) => res.send("👋 SSA is live. Go to /console"));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`✅ SSA running on port ${port}`));
