@@ -1,56 +1,50 @@
 const express = require("express");
 const fs = require("fs");
-const path = require("path");
 const { execSync } = require("child_process");
 const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Root route
-app.get("/", (req, res) => {
-  res.send("👋 SSA is running. Go to <a href='/console'>/console</a>");
-});
-
-// ✅ SSA Console UI
+// ✅ Chat console UI
 app.get("/console", (req, res) => {
   res.send(`
     <html>
       <head>
         <title>SSA Console</title>
         <style>
-          body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
-          #messages { border: 1px solid #ccc; padding: 1rem; height: 200px; overflow-y: scroll; margin-bottom: 1rem; background: #f9f9f9; }
+          body { font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto; }
+          #messages { border: 1px solid #ccc; padding: 1rem; height: 250px; overflow-y: scroll; margin-bottom: 1rem; }
         </style>
       </head>
       <body>
         <h1>🧠 SSA Console</h1>
         <div id="messages"></div>
-        <input id="input" placeholder="Type an instruction..." style="width: 80%" />
+        <input id="input" placeholder="Give SSA a new instruction..." style="width: 80%" />
         <button onclick="send()">Send</button>
 
         <script>
           const log = msg => {
-            const div = document.createElement('div');
-            div.innerText = msg;
-            document.getElementById('messages').appendChild(div);
+            document.getElementById('messages').innerHTML += "<div>" + msg + "</div>";
           };
 
-          async function send() {
-            const input = document.getElementById("input").value;
-            log("🧠 " + input);
-            try {
-              const res = await fetch("/api/evolve", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ instruction: input })
-              });
-              const data = await res.json();
-              if (res.ok) log("✅ " + data.message);
-              else log("❌ " + data.error);
-            } catch (err) {
-              log("❌ Network error: " + err.message);
-            }
+          function send() {
+            const instruction = document.getElementById("input").value;
+            log("🧠 " + instruction);
+            fetch("/api/evolve", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ instruction })
+            })
+              .then(res => res.json())
+              .then(data => {
+                if (data.error) {
+                  log("❌ " + data.error);
+                } else {
+                  log("✅ " + data.message);
+                }
+              })
+              .catch(err => log("❌ " + err.message));
           }
         </script>
       </body>
@@ -58,36 +52,35 @@ app.get("/console", (req, res) => {
   `);
 });
 
-// ✅ SSA Evolution endpoint
+// ✅ Evolve endpoint
 app.post("/api/evolve", (req, res) => {
   const { instruction } = req.body;
-  const patch = `\n// 🔁 SSA Evolution\n// ${instruction}\n`;
-  const filePath = path.join(__dirname, "app.js");
+  const newCode = `\n// 🔁 SSA Evolution\n// ${instruction}\n`;
 
   try {
-    // 🔍 Step 1: Simulate applying the patch
-    const original = fs.readFileSync(filePath, "utf-8");
-    const simulated = original + patch;
+    // 1. Append to app.js
+    fs.appendFileSync("app.js", newCode);
 
-    // ✅ Step 2: Basic syntax check
-    try {
-      new Function(simulated); // validate
-    } catch (err) {
-      return res.status(400).json({ error: "Invalid JavaScript: " + err.message });
-    }
-
-    // 💾 Step 3: Write, commit and push
-    fs.writeFileSync(filePath, simulated);
+    // 2. Git commit + push with safe commit message
+    const safeInstruction = instruction.replace(/"/g, '\\"');
     execSync("git add app.js");
-    execSync(`git commit -m \"🧠 SSA evolved: ${instruction}\"`);
+    execSync(`git commit -m "🧠 SSA evolved: ${safeInstruction}"`);
     execSync("git push");
 
-    res.json({ message: "SSA evolved, committed and pushed successfully." });
+    res.json({ message: "SSA evolved and pushed to GitHub." });
   } catch (err) {
-    console.error("❌ Evolution failed:", err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: err.message || "Evolution failed." });
   }
 });
 
+// ✅ Home
+app.get("/", (req, res) => {
+  res.send("👋 SSA is running. Visit /console to evolve it.");
+});
+
+// ✅ Start
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`✅ SSA running on port ${port}`));
+app.listen(port, () => {
+  console.log(`✅ SSA running on port ${port}`);
+});
