@@ -1,32 +1,31 @@
 const express = require("express");
 const fs = require("fs");
 const { execSync } = require("child_process");
-const path = require("path");
-
 const app = express();
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Console UI
+// ✅ SSA Console
 app.get("/console", (req, res) => {
   res.send(`
     <html>
       <head>
         <title>SSA Console</title>
         <style>
-          body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
-          #messages { border: 1px solid #ccc; padding: 1rem; height: 200px; overflow-y: scroll; margin-bottom: 1rem; }
+          body { font-family: sans-serif; padding: 2rem; max-width: 800px; margin: auto; }
+          #messages { border: 1px solid #ccc; padding: 1rem; height: 300px; overflow-y: scroll; margin-bottom: 1rem; }
         </style>
       </head>
       <body>
         <h1>🧠 SSA Console</h1>
         <div id="messages"></div>
-        <input id="input" placeholder="Give SSA a new instruction..." style="width: 80%" />
+        <input id="input" style="width: 80%" placeholder="Give SSA an instruction..." />
         <button onclick="send()">Send</button>
 
         <script>
           const log = msg => {
-            document.getElementById('messages').innerHTML += "<div>" + msg + "</div>";
+            document.getElementById("messages").innerHTML += "<div>" + msg + "</div>";
           };
 
           function send() {
@@ -47,36 +46,40 @@ app.get("/console", (req, res) => {
   `);
 });
 
-// ✅ Evolution endpoint
+// 🧠 Evolve + Self-Rewriting Route
 app.post("/api/evolve", (req, res) => {
   const { instruction } = req.body;
-  console.log("🧠 Instruction received:", instruction);
-
-  const match = instruction.match(/Add a GET route at (.*?) that returns (\{.*\})/);
-  if (!match) {
-    return res.status(400).json({ error: "❌ Could not parse instruction." });
-  }
-
-  const route = match[1].trim();
-  const responseObj = match[2];
-
-  const codeToAdd = `\n// 🔁 Auto-added route\napp.get(\"${route}\", (req, res) => res.json(${responseObj}));\n`;
 
   try {
-    fs.appendFileSync(path.join(__dirname, "app.js"), codeToAdd);
+    const match = instruction.match(/GET route at (\/\S+) that returns (.+)/);
+    if (!match) throw new Error("Instruction format not recognized.");
+
+    const route = match[1];
+    const response = match[2];
+
+    const routeCode = `
+app.get("${route}", (req, res) => {
+  res.json(${response});
+});
+`;
+
+    // Append the route
+    fs.appendFileSync("app.js", "\n// 🔁 " + instruction + "\n" + routeCode);
+
+    // Git commit + push
     execSync("git add app.js");
-    execSync(`git commit -m \"🧠 Evolved: ${instruction}\"`);
+    execSync(`git commit -m "🧠 SSA evolved: ${instruction}"`);
     execSync("git push");
 
-    res.json({ message: `Evolved and deployed route ${route}` });
+    res.json({ message: `Evolved and pushed: ${route}` });
   } catch (err) {
-    console.error("❌ Evolution error:", err);
-    res.status(500).json({ error: "Evolution failed." });
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ Root
-app.get("/", (req, res) => res.send("👋 SSA is live. Go to /console"));
+// ✅ Default root route
+app.get("/", (req, res) => res.send("👋 SSA is online. Go to /console"));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`✅ SSA running on port ${port}`));
