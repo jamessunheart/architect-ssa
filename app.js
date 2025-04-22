@@ -52,6 +52,14 @@ app.post("/api/evolve", (req, res) => {
   res.json({ message: `SSA received: "${instruction}"` });
 });
 
+// 🔁 SSA Evolution
+app.get("/api/time", (req, res) => {
+  res.json({ time: new Date().toUTCString() });
+});
+
+// ✅ Root route
+app.get("/", (req, res) => res.send("👋 SSA is awake. Go to /console"));
+
 // ✅ Root route
 app.get("/", (req, res) => res.send("👋 SSA is awake. Go to /console"));
 
