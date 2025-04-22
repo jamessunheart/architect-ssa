@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ SSA Console (Chat UI)
+// ✅ SSA Console
 app.get("/console", (req, res) => {
   res.send(`
     <html>
@@ -22,12 +22,10 @@ app.get("/console", (req, res) => {
         <div id="messages"></div>
         <input id="input" placeholder="Give SSA a new instruction..." style="width: 80%" />
         <button onclick="send()">Send</button>
-
         <script>
           const log = msg => {
             document.getElementById('messages').innerHTML += "<div>" + msg + "</div>";
           };
-
           function send() {
             const instruction = document.getElementById("input").value;
             log("🧠 " + instruction);
@@ -38,8 +36,11 @@ app.get("/console", (req, res) => {
             })
               .then(res => res.json())
               .then(data => {
-                if (data.error) log("❌ " + data.error);
-                else log("✅ " + data.message);
+                if (data.message) {
+                  log("✅ " + data.message);
+                } else if (data.error) {
+                  log("❌ " + data.error);
+                }
               })
               .catch(err => log("❌ " + err.message));
           }
@@ -49,29 +50,31 @@ app.get("/console", (req, res) => {
   `);
 });
 
-// ✅ SSA Evolution Endpoint
+// ✅ Sanity route
+app.get("/hello", (req, res) => {
+  res.send("Hello, SSA!");
+});
+
+// ✅ Evolve endpoint
 app.post("/api/evolve", (req, res) => {
   const { instruction } = req.body;
-  const newCode = `\n// 🔁 SSA Evolution\n// ${instruction}\n`;
+
+  const safeCommitMsg = instruction.replace(/["'$\\`]/g, "").slice(0, 100);
+  const injectedCode = `\n// 🧠 SSA Evolution\n// ${instruction}\n`;
 
   try {
-    // 1. Append to app.js
-    fs.appendFileSync("app.js", newCode);
-
-    // 2. Escape quotes for Git commit
-    const escaped = instruction.replace(/"/g, '\\"').replace(/'/g, "\\'");
+    fs.appendFileSync("app.js", injectedCode);
     execSync("git add app.js");
-    execSync(`git commit -m "🧠 SSA evolved: ${escaped}"`);
+    execSync(`git commit -m "SSA evolved: ${safeCommitMsg}"`);
     execSync("git push");
-
     res.json({ message: "SSA evolved and pushed to GitHub." });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message || "Evolution failed." });
+    console.error("Evolution failed:", err.message);
+    res.status(500).json({ error: `Evolution failed: ${err.message}` });
   }
 });
 
-// ✅ Default route
+// ✅ Base
 app.get("/", (req, res) => res.send("👋 SSA is running. Go to /console"));
 
 const port = process.env.PORT || 3000;
