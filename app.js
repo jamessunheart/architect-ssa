@@ -1,116 +1,73 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const fs = require('fs');
-const path = require('path');
-const simpleGit = require('simple-git');
-const { OpenAI } = require('openai');
-
+const express = require("express");
+const fs = require("fs");
+const { execSync } = require("child_process");
 const app = express();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const git = simpleGit();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-app.use(bodyParser.json());
-app.use(express.static('public'));
-app.use('/projects', express.static(path.join(__dirname, 'projects')));
+// ✅ Chat console UI
+app.get("/console", (req, res) => {
+  res.send(`
+    <html>
+      <head>
+        <title>SSA Console</title>
+        <style>
+          body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
+          #messages { border: 1px solid #ccc; padding: 1rem; height: 200px; overflow-y: scroll; margin-bottom: 1rem; }
+        </style>
+      </head>
+      <body>
+        <h1>🧠 SSA Console</h1>
+        <div id="messages"></div>
+        <input id="input" placeholder="Give SSA a new instruction..." style="width: 80%" />
+        <button onclick="send()">Send</button>
 
-const projectsDir = path.join(__dirname, 'projects');
-if (!fs.existsSync(projectsDir)) fs.mkdirSync(projectsDir, { recursive: true });
+        <script>
+          const log = msg => {
+            document.getElementById('messages').innerHTML += "<div>" + msg + "</div>";
+          };
 
-// 🔨 Build new app from prompt
-app.post('/api/build', async (req, res) => {
-  const { prompt, integrations = [] } = req.body;
-  const projectName = prompt.replace(/\\W+/g, '_').toLowerCase();
-  const projectPath = path.join(projectsDir, projectName);
-  if (!fs.existsSync(projectPath)) fs.mkdirSync(projectPath, { recursive: true });
-
-  const integrationNote = integrations.length > 0
-    ? "Integrate with: " + integrations.join(', ')
-    : "";
-
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo", // ✅ GPT-4.1
-      messages: [{
-        role: "user",
-        content: `Create a full index.html file (with JS and CSS) for this app idea: "${prompt}". ${integrationNote} Reply only with valid HTML.`
-      }]
-    });
-
-    const htmlCode = completion.choices[0].message.content;
-    fs.writeFileSync(path.join(projectPath, 'index.html'), htmlCode);
-    res.json({ message: "✅ App created", url: `/projects/${projectName}/index.html` });
-  } catch (error) {
-    res.status(500).json({ error: "⚠️ Build error: " + error.message });
-  }
+          function send() {
+            const instruction = document.getElementById("input").value;
+            log("🧠 " + instruction);
+            fetch("/api/evolve", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ instruction })
+            })
+              .then(res => res.json())
+              .then(data => log("✅ " + data.message))
+              .catch(err => log("❌ " + err.message));
+          }
+        </script>
+      </body>
+    </html>
+  `);
 });
 
-// 🔁 Update self with new content
-app.post('/api/update-self', async (req, res) => {
-  const { filePath, newContent, commitMessage } = req.body;
-  const fullPath = path.join(__dirname, filePath);
-  try {
-    fs.writeFileSync(fullPath, newContent);
-    await git.addConfig('user.name', 'Architect SSA', false, 'global');
-    await git.addConfig('user.email', 'architect@ssa.ai', false, 'global');
-
-    try {
-      await git.remote(['get-url', 'origin']);
-    } catch {
-      await git.addRemote('origin', 'git@github.com:jamessunheart/architect-ssa.git');
-    }
-
-    await git.add(filePath);
-    await git.commit(commitMessage || "Auto-update from SSA");
-    await git.push('origin', 'main');
-
-    res.json({ message: `✅ Self-updated, committed, and pushed: ${filePath}` });
-  } catch (err) {
-    res.status(500).json({ error: "❌ Failed to update self: " + err.message });
-  }
-});
-
-// 🧠 Recursively evolve by GPT
-app.post('/api/evolve', async (req, res) => {
+// ✅ Evolve endpoint
+app.post("/api/evolve", (req, res) => {
   const { instruction } = req.body;
+  const newCode = `\n// 🔁 SSA Evolution\n// ${instruction}\n`;
+
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo",
-      messages: [{
-        role: "user",
-        content: `You are the live backend of an evolving AI system. Based on this instruction, return ONLY the full updated JavaScript code for the entire content of app.js:\n\nInstruction: "${instruction}"`
-      }]
-    });
+    // 1. Append to app.js
+    fs.appendFileSync("app.js", newCode);
 
-    const newCode = completion.choices[0].message.content;
-    const filePath = "app.js";
-    const fullPath = path.join(__dirname, filePath);
+    // 2. Git commit + push
+    execSync("git add app.js");
+    execSync(`git commit -m "🧠 SSA evolved: ${instruction}"`);
+    execSync("git push");
 
-    fs.writeFileSync(fullPath, newCode);
-    await git.addConfig('user.name', 'Architect SSA', false, 'global');
-    await git.addConfig('user.email', 'architect@ssa.ai', false, 'global');
-
-    try {
-      await git.remote(['get-url', 'origin']);
-    } catch {
-      await git.addRemote('origin', 'git@github.com:jamessunheart/architect-ssa.git');
-    }
-
-    await git.add(filePath);
-    await git.commit(`Evolve: ${instruction}`);
-    await git.push('origin', 'main');
-
-    res.json({ message: "✅ SSA evolved and redeployed successfully." });
+    res.json({ message: "SSA evolved and pushed to GitHub." });
   } catch (err) {
-    res.status(500).json({ error: "❌ Evolution failed: " + err.message });
+    console.error(err);
+    res.status(500).json({ error: "Evolution failed." });
   }
 });
 
-// 🏠 Serve homepage
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// ✅ Base
+app.get("/", (req, res) => res.send("👋 SSA is running. Go to /console"));
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🧠 SSA v5 running at http://localhost:${PORT}`);
-});
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`✅ SSA running on port ${port}`));
